@@ -4,8 +4,10 @@ Sub main()
     Dim dataSheet As Worksheet
     Dim wb As Workbook
     Dim roughSheets() As String
+    Dim pivotTables() As String
     Dim claimStatus() As String
     Dim dict As New Scripting.Dictionary
+    Dim map As New Scripting.Dictionary
     Dim hubMap As Worksheet
     
     ' Environment check
@@ -28,7 +30,8 @@ Sub main()
     End If
     
     ' Initialization
-    roughSheets = Split("Returned claims,Claim not uploaded,Claim to be generated,Face Sheet,All status", ",")
+    roughSheets = Split("Returned claims,Claim not uploaded,Claim to be generated,Face Sheet,All status,Sheet8", ",")
+    pivotTables = Split("ReturnedClaimsPT,ClaimNotUploadedPT,ClaimToBeGeneratedPT", ",")
     claimStatus = Split("B01X,B001,", ",")
     
     ' create empty sheets if not available
@@ -37,6 +40,11 @@ Sub main()
             wb.Sheets.Add(After:=dataSheet).Name = roughSheets(i)
         End If
     Next i
+    
+    ' truncating old data from pages
+    wb.Sheets(roughSheets(5)).Select
+    Cells.Select
+    Selection.ClearContents
     
     ' Generating other worksheets from master data
     For i = LBound(claimStatus) To UBound(claimStatus)
@@ -59,6 +67,8 @@ Sub main()
         End With
     Next i
     
+    Set map = hubMapFn
+    
     ' "Returned claims"
     With wb.Sheets(roughSheets(0))
         .Activate
@@ -77,11 +87,30 @@ Sub main()
             If dict.Exists(cell.Value) Then
                 .Cells(cell.Row, 29) = dict(cell.Value)
             End If
-            '.Cells(cell.Row, 34) =
-            MsgBox hubMap("S055")  'y ' hubMap(.Cells(cell.Row, 3).Value)
+            .Cells(cell.Row, 41) = map(.Cells(cell.Row, 3).Value)
         Next cell
         .Cells(1, 29) = "Claim Amount"
         .Cells(1, 41) = "Hub"
+        
+        ' inserting pivot table
+        ActiveWorkbook.PivotCaches.Create(SourceType:=xlDatabase, SourceData:= _
+            roughSheets(0) & "!R1C1:R" & Rows.Count & "C34", Version:=xlPivotTableVersion15). _
+            CreatePivotTable TableDestination:=roughSheets(5) & "!R3C1", TableName:=pivotTables(0) _
+            , DefaultVersion:=xlPivotTableVersion15
+        Sheets(roughSheets(5)).Select
+        With ActiveSheet.pivotTables(pivotTables(0)).PivotFields("Hub")
+            .Orientation = xlRowField
+            .Position = 1
+        End With
+        With ActiveSheet.pivotTables(pivotTables(0)).PivotFields("Plant Name")
+            .Orientation = xlRowField
+            .Position = 2
+        End With
+        ActiveSheet.pivotTables(pivotTables(0)).AddDataField ActiveSheet.pivotTables( _
+            pivotTables(0)).PivotFields("Active Claim Number"), _
+            "No. of Claims", xlCount
+        ActiveSheet.pivotTables(pivotTables(0)).AddDataField ActiveSheet.pivotTables( _
+            pivotTables(0)).PivotFields("Claim Amount"), "Total Amount", xlSum
     End With
     
     ' "Claim not uploaded"
@@ -101,9 +130,9 @@ Sub main()
             If dict.Exists(cell.Value) Then
                 .Cells(cell.Row, 28) = dict(cell.Value)
             End If
-            .Cells(cell.Row, 34) = hubMap(Cells(cell.Row, 3).Value)
+            .Cells(cell.Row, 31) = map(Cells(cell.Row, 3).Value)
         Next cell
-        .Cells(1, 34) = "Hub"
+        .Cells(1, 31) = "Hub"
     End With
     
     ' "Claim to be generated"
@@ -120,7 +149,7 @@ Sub main()
             If dict.Exists(cell.Value) Then
                 .Cells(cell.Row, 20) = dict(cell.Value)
             End If
-            .Cells(cell.Row, 21) = hubMap(Cells(cell.Row, 3).Value)
+            .Cells(cell.Row, 21) = map(.Cells(cell.Row, 3).Value)
         Next cell
         .Cells(1, 21) = "Hub"
     End With
@@ -167,14 +196,13 @@ Function groupAdd(colName As String, Optional ws As Worksheet) As Scripting.Dict
     
 End Function
 
-Function hubMap(Optional hubCode As String)
+Function hubMapFn() As Scripting.Dictionary
+    Dim map As New Scripting.Dictionary
     With ActiveWorkbook.Sheets("Hub Map")
         .Activate
         For Each cell In .Range("$A$1:$A$" & .Cells(1, 1).End(xlDown).Row).Cells
-            If hubCode = cell.Value Then
-                hubMap = .Cells(cell.Row, 2)
-                Exit For
-            End If
+                map.Add cell.Value, .Cells(cell.Row, 2)
         Next cell
     End With
+    Set hubMapFn = map
 End Function
