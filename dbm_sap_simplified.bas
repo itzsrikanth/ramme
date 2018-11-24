@@ -10,6 +10,8 @@ Sub main()
     Dim map As New Scripting.Dictionary
     Dim hubMap As Worksheet
     Dim rowNum As Integer
+    Dim RegEx As New regexp
+    Dim tvsPattern As String
     
     ' Environment check
     Set wb = ActiveWorkbook
@@ -25,6 +27,13 @@ Sub main()
     End If
     
     ' Initialization
+    tvsPattern = "^TVS\s*-?\s*(\w+)(\s*-?\s*\w+)?$"
+    With RegEx
+        .Global = True
+        .MultiLine = True
+        .IgnoreCase = True
+        .Pattern = tvsPattern
+    End With
     roughSheets = Split("Sheet1,Sheet2,Sheet4,CLAIMWISE", ",")
     pivotTables = Split("SumOfClaimAmounts,FaceSheetPivot", ",")
     
@@ -58,6 +67,7 @@ Sub main()
         Selection.NumberFormat = "@"
         For Each cell In .Range("$G$2:$G$" & CStr(Cells(Rows.Count, 1).End(xlUp).Row)).Cells
             rowNum = cell.Row
+            .Cells(rowNum, 5).Value = RegEx.Replace(.Cells(rowNum, 5).Value, "$1$2")
             .Cells(rowNum, 41).Value = "" & .Cells(rowNum, 7) & .Cells(rowNum, 35)
             If dict.Exists(.Cells(rowNum, 26).Value) Then
                 .Cells(rowNum, 42).Value = dict(.Cells(rowNum, 26).Value)
@@ -76,9 +86,8 @@ Sub main()
         
         ' Making Sheet2 pivot table
         wb.PivotCaches.Create(SourceType:=xlDatabase, SourceData:= _
-            roughSheets(0) & "!R1C1:R" & Rows.Count & "C41", Version:=xlPivotTableVersion15).CreatePivotTable _
-            TableDestination:=roughSheets(1) & "!R1C1", TableName:=pivotTables(0), DefaultVersion _
-            :=xlPivotTableVersion15
+            roughSheets(0) & "!R1C1:R" & Rows.Count & "C41").CreatePivotTable _
+            TableDestination:=roughSheets(1) & "!R1C1", TableName:=pivotTables(0)
         With .pivotTables(pivotTables(0)).PivotFields("REMARKS")
             .Orientation = xlRowField
             .Position = 1
@@ -107,7 +116,7 @@ Sub main()
     ' Removing unwanted columns from CLAIMWISE
      With wb.sheets(roughSheets(3))
         .Activate
-        .Range("$A$1:$AO$" & CStr(Cells(Rows.Count, 1).End(xlUp).Row)).removeduplicates Columns:=41, Header:=xlYes
+        .Range("$A$1:$AO$" & CStr(Cells(Rows.Count, 1).End(xlUp).Row)).RemoveDuplicates Columns:=41, Header:=xlYes
         .Columns("AC:AF").Select
         Selection.Delete Shift:=xlToLeft
         .Columns("AD:AD").Select
@@ -119,31 +128,71 @@ Sub main()
     ' Final step
     
     ActiveWorkbook.PivotCaches.Create(SourceType:=xlDatabase, SourceData:= _
-        "CLAIMWISE!R1C1:R14856C34", Version:=xlPivotTableVersion15).CreatePivotTable _
-        TableDestination:="Sheet4!R3C1", TableName:=pivotTables(1), DefaultVersion _
-        :=xlPivotTableVersion15
+        "CLAIMWISE!R1C1:R14856C34").CreatePivotTable _
+        TableDestination:="Sheet4!R3C1", TableName:=pivotTables(1)
     sheets("Sheet4").Select
     Cells(3, 1).Select
     With ActiveSheet.pivotTables(pivotTables(1)).PivotFields("Sales Organisasation")
         .Orientation = xlRowField
         .Position = 1
+        .Caption = "Hub"
     End With
     With ActiveSheet.pivotTables(pivotTables(1)).PivotFields("Plant Name")
         .Orientation = xlRowField
         .Position = 2
+        .Caption = "Outlet"
+    End With
+    With ActiveSheet.pivotTables(pivotTables(1)).PivotFields("Status")
+        .Orientation = xlRowField
+        .Position = 3
     End With
     With ActiveSheet.pivotTables(pivotTables(1)).PivotFields("Status")
         .Orientation = xlColumnField
         .Position = 1
     End With
-    ActiveSheet.pivotTables(pivotTables(1)).AddDataField ActiveSheet.pivotTables( _
-        pivotTables(1)).PivotFields("Claim Amount"), "Sum of Claim Amount", xlSum
     With ActiveSheet.pivotTables(pivotTables(1)).PivotFields("REMARKS")
         .Orientation = xlRowField
         .Position = 3
     End With
     ActiveSheet.pivotTables(pivotTables(1)).AddDataField ActiveSheet.pivotTables( _
         pivotTables(1)).PivotFields("REMARKS"), "Count of REMARKS", xlCount
+    ActiveSheet.pivotTables(pivotTables(1)).AddDataField ActiveSheet.pivotTables( _
+        pivotTables(1)).PivotFields("Claim Amount"), "Sum of Claim Amount", xlSum
+    
+    ' pivot table formatting
+    With ActiveSheet.pivotTables(pivotTables(1))
+        .MergeLabels = True
+        .InGridDropZones = True
+        .RowAxisLayout xlTabularRow
+    End With
+    ActiveSheet.pivotTables(pivotTables(1)).DataPivotField.PivotItems( _
+        "Count of REMARKS").Caption = "Nos."
+    ActiveSheet.pivotTables(pivotTables(1)).DataPivotField.PivotItems( _
+        "Sum of Claim Amount").Caption = "Amount"
+    ActiveSheet.pivotTables(pivotTables(1)).PivotSelect "'Claim not uploaded'", _
+        xlDataAndLabel, True
+    ActiveSheet.pivotTables("FaceSheetPivot").FieldListSortAscending = True
+    
+    Cells.Select
+    With Selection
+        .RowHeight = 15
+        .Font.Name = "Liberation Sans"
+        .Font.Size = 9
+    End With
+    
+    Range("C:C,E:E,G:G,I:I").Select
+    With Selection
+        .ColumnWidth = 9
+    End With
+    Range("D:D,F:F,H:H,J:J").Select
+    With Selection
+        .NumberFormat = "0"
+        .ColumnWidth = 9
+    End With
+    ' Range("A:A").Select
+    ' Selection.ColumnWidth = 9
+    Range("B:B").Select
+    Selection.HorizontalAlignment = xlLeft
         
     ' Final touches
     wb.sheets(roughSheets(2)).Range("A1:J1").Select
