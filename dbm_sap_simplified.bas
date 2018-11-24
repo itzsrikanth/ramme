@@ -8,8 +8,10 @@ Sub main()
     ' Add Microsoft Scripting Runtime in references
     Dim dict As New Scripting.Dictionary
     Dim map As New Scripting.Dictionary
+    Dim pivot As New Scripting.Dictionary
     Dim hubMap As Worksheet
     Dim rowNum As Integer
+    Dim claimWiseRowCount As Integer
     Dim RegEx As New regexp
     Dim tvsPattern As String
     
@@ -94,21 +96,43 @@ Sub main()
         End With
         .pivotTables(pivotTables(0)).AddDataField ActiveSheet.pivotTables( _
             pivotTables(0)).PivotFields("Claim Amount"), "Sum of Claim Amount", xlSum
+            
+        ' reading entire pivot into a dictionary
+        For i = 2 To Cells(Rows.Count, 1).End(xlUp).Row - 1
+            pivot.Add Cells(i, 1).Value, Cells(i, 2).Value
+        Next i
         
     End With
         
     ' Step 3
     With wb.sheets("Sheet1")
         .Activate
+        .Cells.Select
+        .Cells.EntireColumn.AutoFit
+        With Selection
+            .RowHeight = 15
+            .Font.Name = "Liberation Sans"
+            .Font.Size = 9
+        End With
         .Range("$A$1:$AQ$" & CStr(Cells(Rows.Count, 1).End(xlUp).Row)).Select
     End With
     Selection.Copy
+    With ActiveWindow
+        .SplitColumn = 0
+        .SplitRow = 1
+    End With
+    ActiveWindow.FreezePanes = True
     With wb.sheets(roughSheets(3))
         .Activate
         .Cells(1, 1).Select
         .Paste
         .Cells(1, 1).Select
     End With
+    With ActiveWindow
+        .SplitColumn = 0
+        .SplitRow = 1
+    End With
+    ActiveWindow.FreezePanes = True
     
 '    ActiveSheet.Range("$A$1:$AO$" & CStr(Cells(Rows.Count, 1).End(xlUp).Row)).removeduplicates Columns:=41, Header:=xlYes
     
@@ -116,13 +140,31 @@ Sub main()
     ' Removing unwanted columns from CLAIMWISE
      With wb.sheets(roughSheets(3))
         .Activate
-        .Range("$A$1:$AO$" & CStr(Cells(Rows.Count, 1).End(xlUp).Row)).RemoveDuplicates Columns:=41, Header:=xlYes
+        .Cells.Select
+        .Cells.EntireColumn.AutoFit
+        With Selection
+            .RowHeight = 15
+            .Font.Name = "Liberation Sans"
+            .Font.Size = 9
+        End With
+        .Range("$A$1:$AO$" & CStr(Cells(Rows.Count, 1).End(xlUp).Row)).removeduplicates Columns:=41, Header:=xlYes
         .Columns("AC:AF").Select
         Selection.Delete Shift:=xlToLeft
         .Columns("AD:AD").Select
         Selection.Delete Shift:=xlToLeft
         .Columns("AE:AH").Select
         Selection.Delete Shift:=xlToLeft
+        claimWiseRowCount = Cells(Rows.Count, 1).End(xlUp).Row
+        ' adding VLOOKUP and autofill other rows
+        For i = 2 To claimWiseRowCount
+            If pivot.Exists(Cells(i, 32).Value) Then
+                Cells(i, 29).Value = pivot(Cells(i, 32).Value)
+            End If
+            ' Cells(i, 29).FormulaR1C1 = "=VLOOKUP(R" & i & "C32," & roughSheets(1) & "!R" & i & "C1:R" & claimWiseRowCount & "C2, 2,)"
+            ' Range("AC2").Select
+            ' Selection.AutoFill Destination:=Range("AC2:AC" & claimWiseRowCount)
+            ' Range("AC2:AC" & claimWiseRowCount).FillDown
+        Next i
     End With
     
     ' Final step
