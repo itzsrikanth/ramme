@@ -170,7 +170,7 @@ Sub main()
     ' Final step
     
     ActiveWorkbook.PivotCaches.Create(SourceType:=xlDatabase, SourceData:= _
-        "CLAIMWISE!R1C1:R14856C34").CreatePivotTable _
+        "CLAIMWISE!R1C1:R" & Cells(Rows.Count, 1).End(xlUp).Row & "C34").CreatePivotTable _
         TableDestination:="Sheet4!R3C1", TableName:=pivotTables(1)
     sheets("Sheet4").Select
     Cells(3, 1).Select
@@ -265,8 +265,10 @@ Sub cleanUp()
     Dim sheets() As String
     sheets = Split("Sheet2,Sheet4,CLAIMWISE", ",")
     For i = LBound(sheets) To UBound(sheets)
-        ActiveWorkbook.sheets(sheets(i)).Select
-        ActiveWindow.SelectedSheets.Delete
+        If sheetExists(sheets(i)) Then
+            ActiveWorkbook.sheets(sheets(i)).Select
+            ActiveWindow.SelectedSheets.Delete
+        End If
     Next i
     ActiveWorkbook.sheets("Sheet1").Activate
     Columns("AO:AQ").Select
