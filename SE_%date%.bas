@@ -3,7 +3,8 @@ Sub main()
     Dim HubMap As New Scripting.dictionary
     Dim roughSheets() As String
     Dim splits() As String
-    
+    Dim rowCount As Integer
+    Dim pivotSrc As String
     
     ' Environment check
     Set wb = ActiveWorkbook
@@ -76,7 +77,62 @@ Sub main()
             Cells(i, 7).Value = splits(1)
             Cells(i, 8).Value = splits(0)
         Next i
+        Cells.Select
+        With Selection
+            .RowHeight = 15
+            .Font.Name = "Liberation Sans"
+            .Font.Size = 9
+        End With
     End With
+    
+    
+    ' Adding main Pivot table
+    sheets(roughSheets(0)).Select
+    rowCount = Cells(Rows.Count, 1).End(xlUp).Row
+    pivotSrc = "Sheet1!R1C1:R" & rowCount & "C12"
+     ActiveWorkbook.PivotCaches.Create(SourceType:=xlDatabase, SourceData:= _
+        "Sheet1!R1C1:R10C12", Version:=xlPivotTableVersion15).CreatePivotTable _
+        TableDestination:="Sheet2!R3C1", TableName:="PivotTable2", DefaultVersion _
+        :=xlPivotTableVersion15
+    ActiveWorkbook.PivotCaches.Create(SourceType:=xlDatabase, SourceData:=pivotSrc).CreatePivotTable _
+        TableDestination:="Sheet2!R3C1", TableName:="SEmainPivot"
+    Cells(3, 1).Select
+'    With ActiveSheet.PivotTables("SEmainPivot").PivotFields("App")
+'        .Orientation = xlRowField
+'        .Position = 1
+'    End With
+    With ActiveSheet.PivotTables("SEmainPivot").PivotFields("App")
+        .Orientation = xlColumnField
+        .Position = 1
+    End With
+    With ActiveSheet.PivotTables("SEmainPivot").PivotFields("Hub")
+        .Orientation = xlRowField
+        .Position = 1
+    End With
+    With ActiveSheet.PivotTables("SEmainPivot").PivotFields("Outlet")
+        .Orientation = xlRowField
+        .Position = 2
+    End With
+'    With ActiveSheet.PivotTables("SEmainPivot").PivotFields("Claim-External. No.")
+'        .Orientation = xlRowField
+'        .Position = 3
+'        .Caption = "Claims"
+'    End With
+    ActiveSheet.PivotTables("SEmainPivot").AddDataField ActiveSheet.PivotTables( _
+        "SEmainPivot").PivotFields("Claim-External. No."), _
+        "Count of Claim-External. No.", xlCount
+    ActiveSheet.PivotTables("SEmainPivot").AddDataField ActiveSheet.PivotTables( _
+        "SEmainPivot").PivotFields("Appr Amount"), "Sum of Appr Amount", xlSum
+    ActiveSheet.PivotTables("SEmainPivot").DataPivotField.PivotItems( _
+        "Count of Claim-External. No.").Caption = "Claims"
+    ActiveSheet.PivotTables("SEmainPivot").DataPivotField.PivotItems( _
+        "Sum of Appr Amount").Caption = "Amount"
+    With ActiveSheet.PivotTables("SEmainPivot")
+        .MergeLabels = True
+        .InGridDropZones = True
+        .RowAxisLayout xlTabularRow
+    End With
+    
     
     ' Final touches
     wb.sheets(roughSheets(1)).Activate
